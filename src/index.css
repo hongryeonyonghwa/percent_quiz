@@ -1,0 +1,623 @@
+/* Layout: 가운데 한 열. 위에 이름과 진행 상황, 카드 안에 문제 → 큰 숫자 → 0~100 눈금자 → 버튼 순서. */
+:root {
+  --bg: #f1f2ed;
+  --card: #ffffff;
+  --ink: #1b1e1c;
+  --muted: #5f6661;
+  --line: #d8dbd3;
+  --guess: #2846d4; /* 내 답 */
+  --answer: #d8461f; /* 정답 */
+  --gap: #f6d6cb; /* 내 답과 정답 사이 */
+  --on-guess: #ffffff;
+  --correct: #1d7a45; /* 정답 범위 안 */
+  --on-correct: #ffffff;
+
+  --font-num: "Archivo", "Gothic A1", "Apple SD Gothic Neo", sans-serif;
+  --font-body: "Gothic A1", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --inset: 14px; /* 슬라이더 손잡이 반지름. 눈금과 표시를 손잡이 중심에 맞춘다 */
+  color-scheme: light;
+}
+
+/* 테마는 기기(시스템) 설정을 그대로 따른다 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #131513;
+    --card: #1c1f1d;
+    --ink: #eceee9;
+    --muted: #9aa19c;
+    --line: #30352f;
+    --guess: #8197ff;
+    --answer: #ff7b54;
+    --gap: #47291f;
+    --on-guess: #0d1233;
+    --correct: #4fc489;
+    --on-correct: #0b2416;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 반짝이가 화면 밖으로 튀어도 가로 스크롤이 생기지 않게 앱 전체 폭에서 잘라 낸다 */
+#root { overflow-x: clip; }
+
+.page {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding-inline: 1.25rem;
+  padding-block: clamp(1.5rem, 5vw, 3.5rem) 3rem;
+  display: grid;
+  gap: 1.25rem;
+}
+
+.top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.brand {
+  margin: 0;
+  font: 800 1.5rem / 1.2 var(--font-body);
+  letter-spacing: -0.02em;
+}
+
+.progress {
+  margin: 0;
+  font: 600 0.9375rem / 1 var(--font-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.progress b { color: var(--ink); }
+
+.card {
+  --pad: clamp(1.25rem, 4vw, 2.25rem);
+  display: grid;
+  gap: 1.5rem;
+  padding: var(--pad);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 1.5rem;
+}
+
+/* 첫 화면: 하는 법과 문제 수 고르기 */
+.howto {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+  counter-reset: step;
+  word-break: keep-all;
+}
+
+.howto li {
+  position: relative;
+  padding-left: 2.5rem;
+}
+
+.howto li::before {
+  counter-increment: step;
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: var(--guess);
+  color: var(--on-guess);
+  font: 700 0.875rem / 1 var(--font-num);
+}
+
+.howto span {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.howto .is-correct { color: var(--correct); }
+
+.count-picker {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.count-picker legend {
+  padding: 0;
+  margin-bottom: 0.6rem;
+  font-weight: 700;
+}
+
+.count-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.count-option {
+  position: relative;
+  cursor: pointer;
+}
+
+.count-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.count-option span {
+  display: block;
+  padding: 0.7rem 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font: 700 0.9375rem / 1 var(--font-body);
+}
+
+.count-option:hover span { border-color: var(--muted); }
+
+.count-option input:checked + span {
+  background: var(--guess);
+  border-color: var(--guess);
+  color: var(--on-guess);
+}
+
+.count-option input:focus-visible + span {
+  outline: 3px solid var(--guess);
+  outline-offset: 3px;
+}
+
+/* 문제 머리: 카드 위쪽 끝까지 사진을 깔고, 아래로 갈수록 어둡게 덮어 흰 질문 글씨를 읽기 쉽게 한다 */
+.question-hero {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: flex-end;
+  min-height: clamp(11rem, 42vw, 15rem);
+  margin: calc(-1 * var(--pad)) calc(-1 * var(--pad)) 0;
+  padding: 3rem var(--pad) var(--pad);
+  border-radius: calc(1.5rem - 1px) calc(1.5rem - 1px) 0 0; /* 카드 테두리 안쪽 모서리 */
+  overflow: hidden;
+  background: #1d201e; /* 사진이 뜨기 전 */
+}
+
+.question-hero img {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.question-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.25), rgb(0 0 0 / 0.45) 40%, rgb(0 0 0 / 0.82));
+}
+
+.question-hero .question {
+  color: #fff;
+  text-shadow: 0 1px 12px rgb(0 0 0 / 0.45);
+}
+
+.photo-credit {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  max-width: 70%;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.45);
+  color: rgb(255 255 255 / 0.85);
+  font-size: 0.6875rem;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.photo-credit:hover { color: #fff; }
+
+.photo-credit:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.question {
+  margin: 0;
+  font: 700 clamp(1.25rem, 1rem + 1.2vw, 1.6rem) / 1.45 var(--font-body);
+  letter-spacing: -0.01em;
+  word-break: keep-all;
+  text-wrap: balance;
+}
+
+.readout {
+  margin: 0;
+  font-family: var(--font-num);
+  font-stretch: 125%;
+  font-weight: 800;
+  font-size: clamp(4.5rem, 3rem + 10vw, 7.5rem);
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--guess);
+}
+
+.readout.is-answer { color: var(--answer); }
+
+.unit {
+  margin-left: 0.06em;
+  font-size: 0.45em;
+  font-stretch: 100%;
+}
+
+/* 0~100 눈금자: 위쪽은 표시 이름 자리 */
+.scale {
+  display: grid;
+  gap: 0.5rem;
+  padding-top: 1.4rem;
+}
+
+.ticks,
+.ruler-track {
+  position: relative;
+  margin-inline: var(--inset);
+}
+
+.ticks {
+  height: 1rem;
+  font: 500 0.75rem / 1 var(--font-num);
+  color: var(--muted);
+}
+
+.ticks span {
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+input[type="range"] {
+  appearance: none;
+  -webkit-appearance: none;
+  display: block;
+  width: 100%;
+  height: 28px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--guess) var(--value), var(--line) var(--value));
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 28px;
+  height: 28px;
+  margin-top: -9px;
+  border-radius: 50%;
+  background: var(--guess);
+  border: 4px solid var(--card);
+  box-shadow: 0 0 0 1px var(--guess);
+}
+
+input[type="range"]::-moz-range-track {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+input[type="range"]::-moz-range-progress {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--guess);
+}
+
+input[type="range"]::-moz-range-thumb {
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--guess);
+  border: 4px solid var(--card);
+  box-shadow: 0 0 0 1px var(--guess);
+}
+
+input[type="range"]:focus-visible {
+  outline: 3px solid var(--guess);
+  outline-offset: 4px;
+  border-radius: 999px;
+}
+
+.ruler-track { height: 28px; }
+
+.ruler-track::before {
+  content: "";
+  position: absolute;
+  left: calc(-1 * var(--inset));
+  right: calc(-1 * var(--inset));
+  top: 9px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.ruler-gap {
+  position: absolute;
+  top: 9px;
+  height: 10px;
+  background: var(--gap);
+}
+
+.pin {
+  position: absolute;
+  top: 0;
+  width: 4px;
+  height: 28px;
+  margin-left: -2px;
+  border-radius: 2px;
+}
+
+.pin-guess { background: var(--guess); }
+.pin-answer { background: var(--answer); }
+
+.pin em {
+  position: absolute;
+  bottom: calc(100% + 0.35rem);
+  font: 700 0.75rem / 1 var(--font-body);
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.pin.to-left em { right: 0; }
+.pin.to-right em { left: 0; }
+.pin-guess em { color: var(--guess); }
+.pin-answer em { color: var(--answer); }
+
+.verdict {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+  word-break: keep-all;
+}
+
+.verdict b {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+
+.chip {
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: var(--guess);
+  color: var(--on-guess);
+  font: 700 0.8125rem / 1 var(--font-body);
+}
+
+.chip.is-correct {
+  background: var(--correct);
+  color: var(--on-correct);
+}
+
+.source {
+  margin: 0;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--line);
+  font-size: 0.8125rem;
+  color: var(--muted);
+  word-break: keep-all;
+}
+
+.primary,
+.secondary {
+  justify-self: start;
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0.95rem 1.8rem;
+  font: 700 1rem / 1 var(--font-body);
+  cursor: pointer;
+}
+
+.primary {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+.primary:hover { opacity: 0.9; }
+
+.secondary {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.secondary:hover { border-color: var(--muted); }
+
+.primary:focus-visible,
+.secondary:focus-visible {
+  outline: 3px solid var(--guess);
+  outline-offset: 3px;
+}
+
+/* 정답 공개: 숫자가 다 굴러간 뒤에 채점 결과가 떠오른다 */
+.after-reveal {
+  display: grid;
+  gap: 1.5rem; /* .card와 같은 간격 */
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(0.5rem);
+}
+
+.after-reveal.is-shown {
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.after-reveal.is-shown .chip.is-correct {
+  animation: pop 0.45s ease-out;
+}
+
+@keyframes pop {
+  0% { transform: scale(0.6); }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .after-reveal,
+  .after-reveal.is-shown { transform: none; transition: none; }
+  .after-reveal.is-shown .chip.is-correct { animation: none; }
+}
+
+/* 정답 반짝이: 바깥 조각은 사방으로 튀어 나가고(처음 빠르게), 안쪽은 중력처럼 떨어지며 돌고 반짝인다 */
+.readout-num {
+  position: relative;
+  display: inline-block;
+}
+
+.glitter {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  pointer-events: none;
+}
+
+.glitter-bit {
+  position: absolute;
+  animation: glitter-burst var(--dur) cubic-bezier(0.15, 0.75, 0.3, 1) var(--delay) both;
+}
+
+.glitter-bit i {
+  display: block;
+  width: var(--size);
+  height: var(--size);
+  margin: calc(var(--size) / -2) 0 0 calc(var(--size) / -2);
+  background: linear-gradient(135deg, var(--c) 30%, rgb(255 255 255 / 0.9) 50%, var(--c) 70%);
+  animation:
+    glitter-fall var(--dur) cubic-bezier(0.55, 0, 0.9, 0.55) var(--delay) both,
+    glitter-twinkle var(--twinkle) ease-in-out infinite alternate;
+}
+
+.glitter-bit .is-dot { border-radius: 50%; }
+.glitter-bit .is-diamond { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+.glitter-bit .is-strip { width: calc(var(--size) * 1.7); height: calc(var(--size) * 0.45); }
+.glitter-bit .is-star {
+  width: calc(var(--size) * 1.5);
+  height: calc(var(--size) * 1.5);
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+}
+
+@keyframes glitter-burst {
+  0% { transform: translate(0, 0) scale(0.2); opacity: 1; }
+  70% { opacity: 1; }
+  100% { transform: translate(var(--x), var(--y)) scale(1); opacity: 0; }
+}
+
+@keyframes glitter-fall {
+  from { transform: translateY(0) rotate(0deg); }
+  to { transform: translateY(var(--fall)) rotate(var(--spin)); }
+}
+
+@keyframes glitter-twinkle {
+  from { opacity: 1; }
+  to { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glitter { display: none; }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* 결과 화면 */
+.blocks {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.blocks-row {
+  margin: 0;
+  font-size: clamp(1.25rem, 5.5vw, 1.75rem);
+  line-height: 1.25;
+  white-space: pre-line; /* 10칸마다 줄바꿈 */
+  letter-spacing: 0.05em;
+  overflow-wrap: anywhere;
+}
+
+.blocks-legend {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+  word-break: keep-all;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.recap {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+
+.recap li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.15rem 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.recap-q {
+  font-size: 0.9375rem;
+  word-break: keep-all;
+}
+
+.recap-nums {
+  font: 500 0.8125rem / 1.4 var(--font-num);
+  color: var(--muted);
+}
+
+.recap-score {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  font: 700 1.125rem / 1 var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
